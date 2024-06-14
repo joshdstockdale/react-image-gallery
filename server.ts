@@ -1,163 +1,165 @@
-import fs from "node:fs";
-import path from "node:path";
-import url from "node:url";
-
-import prom from "@isaacs/express-prometheus-middleware";
-import { createRequestHandler } from "@remix-run/express";
-import type { ServerBuild } from "@remix-run/node";
-import { broadcastDevReady, installGlobals } from "@remix-run/node";
-import compression from "compression";
-import type { RequestHandler } from "express";
+import type { Request, Response, NextFunction } from "express";
+import fs from "fs/promises";
+import path, { dirname } from "path";
 import express from "express";
-import morgan from "morgan";
-import sourceMapSupport from "source-map-support";
+import compression from "compression";
+import serveStatic from "serve-static";
+import bodyParser from "body-parser";
+import { createServer as createViteServer } from "vite";
+import { fileURLToPath } from "url";
+import { configDotenv } from "dotenv";
+import pg from "pg";
+const { Pool } = pg;
+import { TPhoto } from "@/api/photos";
+configDotenv();
 
-sourceMapSupport.install();
-installGlobals();
-run();
+const isTest = process.env.NODE_ENV === "test" || !!process.env.VITE_TEST_BUILD;
 
-async function run() {
-  const BUILD_PATH = path.resolve("build/index.js");
-  const VERSION_PATH = path.resolve("build/version.txt");
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
-  const initialBuild = await reimportServer();
-  const remixHandler =
-    process.env.NODE_ENV === "development"
-      ? await createDevRequestHandler(initialBuild)
-      : createRequestHandler({
-          build: initialBuild,
-          mode: initialBuild.mode,
-        });
+const resolve = (p: string) => path.resolve(__dirname, p);
 
-  const app = express();
-  const metricsApp = express();
-  app.use(
-    prom({
-      metricsPath: "/metrics",
-      collectDefaultMetrics: true,
-      metricsApp,
-    }),
-  );
-
-  app.use((req, res, next) => {
-    // helpful headers:
-    res.set("x-fly-region", process.env.FLY_REGION ?? "unknown");
-    res.set("Strict-Transport-Security", `max-age=${60 * 60 * 24 * 365 * 100}`);
-
-    // /clean-urls/ -> /clean-urls
-    if (req.path.endsWith("/") && req.path.length > 1) {
-      const query = req.url.slice(req.path.length);
-      const safepath = req.path.slice(0, -1).replace(/\/+/g, "/");
-      res.redirect(301, safepath + query);
-      return;
+const getStyleSheets = async () => {
+  try {
+    const assetpath = resolve("public");
+    const files = await fs.readdir(assetpath);
+    const cssAssets = files.filter(l => l.endsWith(".css"));
+    const allContent = [];
+    for (const asset of cssAssets) {
+      const content = await fs.readFile(path.join(assetpath, asset), "utf-8");
+      allContent.push(`<style type="text/css">${content}</style>`);
     }
-    next();
-  });
-
-  // if we're not in the primary region, then we need to make sure all
-  // non-GET/HEAD/OPTIONS requests hit the primary region rather than read-only
-  // Postgres DBs.
-  // learn more: https://fly.io/docs/getting-started/multi-region-databases/#replay-the-request
-  app.all("*", function getReplayResponse(req, res, next) {
-    const { method, path: pathname } = req;
-    const { PRIMARY_REGION, FLY_REGION } = process.env;
-
-    const isMethodReplayable = !["GET", "OPTIONS", "HEAD"].includes(method);
-    const isReadOnlyRegion =
-      FLY_REGION && PRIMARY_REGION && FLY_REGION !== PRIMARY_REGION;
-
-    const shouldReplay = isMethodReplayable && isReadOnlyRegion;
-
-    if (!shouldReplay) return next();
-
-    const logInfo = {
-      pathname,
-      method,
-      PRIMARY_REGION,
-      FLY_REGION,
-    };
-    console.info(`Replaying:`, logInfo);
-    res.set("fly-replay", `region=${PRIMARY_REGION}`);
-    return res.sendStatus(409);
-  });
-
-  app.use(compression());
-
-  // http://expressjs.com/en/advanced/best-practice-security.html#at-a-minimum-disable-x-powered-by-header
-  app.disable("x-powered-by");
-
-  // Remix fingerprints its assets so we can cache forever.
-  app.use(
-    "/build",
-    express.static("public/build", { immutable: true, maxAge: "1y" }),
-  );
-
-  // Everything else (like favicon.ico) is cached for an hour. You may want to be
-  // more aggressive with this caching.
-  app.use(express.static("public", { maxAge: "1h" }));
-
-  app.use(morgan("tiny"));
-
-  app.all("*", remixHandler);
-
-  const port = process.env.PORT || 3000;
-  app.listen(port, () => {
-    console.log(`✅ app ready: http://localhost:${port}`);
-
-    if (process.env.NODE_ENV === "development") {
-      broadcastDevReady(initialBuild);
-    }
-  });
-
-  const metricsPort = process.env.METRICS_PORT || 3010;
-
-  metricsApp.listen(metricsPort, () => {
-    console.log(`✅ metrics ready: http://localhost:${metricsPort}/metrics`);
-  });
-
-  async function reimportServer(): Promise<ServerBuild> {
-    // cjs: manually remove the server build from the require cache
-    Object.keys(require.cache).forEach((key) => {
-      if (key.startsWith(BUILD_PATH)) {
-        delete require.cache[key];
-      }
-    });
-
-    const stat = fs.statSync(BUILD_PATH);
-
-    // convert build path to URL for Windows compatibility with dynamic `import`
-    const BUILD_URL = url.pathToFileURL(BUILD_PATH).href;
-
-    // use a timestamp query parameter to bust the import cache
-    return import(BUILD_URL + "?t=" + stat.mtimeMs);
+    return allContent.join("\n");
+  } catch {
+    return "";
   }
+};
 
-  async function createDevRequestHandler(
-    initialBuild: ServerBuild,
-  ): Promise<RequestHandler> {
-    let build = initialBuild;
-    async function handleServerUpdate() {
-      // 1. re-import the server build
-      build = await reimportServer();
-      // 2. tell Remix that this app server is now up-to-date and ready
-      broadcastDevReady(build);
-    }
-    const chokidar = await import("chokidar");
-    chokidar
-      .watch(VERSION_PATH, { ignoreInitial: true })
-      .on("add", handleServerUpdate)
-      .on("change", handleServerUpdate);
+const pool = new Pool();
+const db = {
+  query: (text: string, values?: any[]) => pool.query(text, values),
+};
 
-    // wrap request handler to make sure its recreated with the latest build for every request
-    return async (req, res, next) => {
-      try {
-        return createRequestHandler({
-          build,
-          mode: "development",
-        })(req, res, next);
-      } catch (error) {
-        next(error);
-      }
-    };
-  }
+async function seedDB() {
+  const createTableText = `
+  CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+  
+  CREATE TABLE IF NOT EXISTS images (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    data JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+  );
+  `;
+  // create our table
+  await db.query(createTableText);
+  console.log("DB Tables Created");
 }
+seedDB();
+
+async function createServer(isProd = process.env.NODE_ENV === "production") {
+  const app = express();
+
+  app.use(bodyParser.json());
+  //GET /api/photos
+  app.get("/api/photos", async (req: Request, res: Response) => {
+    try {
+      const result = await db.query(`SELECT id, "data"
+      FROM "images" ORDER BY created_at DESC`);
+      res.json(result.rows);
+    } catch (err) {
+      console.error(err);
+      res.status(500).send("Internal Server Error");
+    }
+  });
+  //POST /api/photos
+  app.post("/api/photos", async (req: Request, res: Response) => {
+    const client = await pool.connect();
+    try {
+      const values: TPhoto[] = req.body;
+      const insertQuery = `INSERT INTO images(data) VALUES($1)`;
+
+      const promises = values.map(row => client.query(insertQuery, [row]));
+      await Promise.all(promises);
+      res.status(200).send({ isSuccessful: true, data: values });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      console.error(err);
+      res.status(500).send("Internal Server Error");
+    } finally {
+      client.release();
+    }
+  });
+  //GET /api/photos
+  app.get("/api/photos/:id", async (req: Request, res: Response) => {
+    const id = req.params.id;
+    try {
+      const query = `SELECT id, "data"
+      FROM "images" WHERE id = $1`;
+      const result = await db.query(query, [id]);
+      if (result.rows.length === 0) {
+        res.status(404).send("Resource not found");
+      }
+      res.json(result.rows[0]);
+    } catch (err) {
+      console.error(err);
+      res.status(500).send("Internal Server Error");
+    }
+  });
+
+  const vite = await createViteServer({
+    server: { middlewareMode: true },
+    appType: "custom",
+    logLevel: isTest ? "error" : "info",
+    root: isProd ? "dist" : "",
+    optimizeDeps: { include: [] },
+  });
+
+  app.use(vite.middlewares);
+  const assetsDir = resolve("public");
+  const requestHandler = express.static(assetsDir);
+  app.use(requestHandler);
+  app.use("/public", requestHandler);
+
+  if (isProd) {
+    app.use(compression());
+    app.use(
+      serveStatic(resolve("client"), {
+        index: false,
+      }),
+    );
+  }
+  const stylesheets = getStyleSheets();
+
+  const baseTemplate = await fs.readFile(isProd ? resolve("client/index.html") : resolve("index.html"), "utf-8");
+  const productionBuildPath = path.join(__dirname, "./server/entry-server.js");
+  const devBuildPath = path.join(__dirname, "./src/client/entry-server.tsx");
+  const buildModule = isProd ? productionBuildPath : devBuildPath;
+  const { render } = await vite.ssrLoadModule(buildModule);
+
+  app.use("*", async (req: Request, res: Response, next: NextFunction) => {
+    const url = req.originalUrl;
+
+    try {
+      const template = await vite.transformIndexHtml(url, baseTemplate);
+      const appHtml = await render(url);
+      const cssAssets = await stylesheets;
+
+      const html = template.replace(`<!--app-html-->`, appHtml).replace(`<!--head-->`, cssAssets);
+
+      res.status(200).set({ "Content-Type": "text/html" }).end(html);
+    } catch (e: any) {
+      !isProd && vite.ssrFixStacktrace(e);
+      console.log(e.stack);
+
+      vite.ssrFixStacktrace(e);
+      next(e);
+    }
+  });
+  const port = process.env.PORT || 7456;
+  app.listen(Number(port), "0.0.0.0", () => {
+    console.log(`App is listening on http://localhost:${port}`);
+  });
+}
+
+createServer();

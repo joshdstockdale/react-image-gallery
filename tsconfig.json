@@ -1,26 +1,29 @@
 {
-  "exclude": ["./cypress", "./cypress.config.ts"],
-  "include": ["remix.env.d.ts", "**/*.ts", "**/*.tsx"],
   "compilerOptions": {
-    "lib": ["DOM", "DOM.Iterable", "ES2020"],
-    "types": ["vitest/globals"],
-    "isolatedModules": true,
-    "esModuleInterop": true,
-    "jsx": "react-jsx",
-    "module": "CommonJS",
-    "moduleResolution": "node",
-    "resolveJsonModule": true,
-    "target": "ES2020",
-    "strict": true,
     "allowJs": true,
-    "forceConsistentCasingInFileNames": true,
+    "alwaysStrict": true,
+    "allowSyntheticDefaultImports": true,
     "baseUrl": ".",
-    "paths": {
-      "~/*": ["./app/*"]
-    },
+    "checkJs": true,
+    "declaration": true,
+    "declarationMap": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "incremental": true,
+    "jsx": "react-jsxdev",
+    "lib": ["DOM", "DOM.Iterable", "ESNext"],
+    "strict": true,
+    "outDir": "dist",
+    "module": "ESNext",
+    "moduleResolution": "Node",
     "skipLibCheck": true,
-
-    // Remix takes care of building everything in `remix build`.
-    "noEmit": true
-  }
+    "sourceMap": true,
+    "target": "ES2017",
+    "types": ["vite/client", "@uploadcare/blocks/types/jsx"],
+    "paths": {
+      "@/*": ["./src/client/*"]
+    }
+  },
+  "include": ["src/**/*", "types/*", "server.ts", "node_modules/vite/types/*"],
+  "references": [{ "path": "./tsconfig.node.json" }]
 }
