@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import fs from "fs/promises";
+import fs from "fs";
 import path, { dirname } from "path";
 import express from "express";
 import compression from "compression";
@@ -23,11 +23,11 @@ const resolve = (p: string) => path.resolve(__dirname, p);
 const getStyleSheets = async () => {
   try {
     const assetpath = resolve("public");
-    const files = await fs.readdir(assetpath);
+    const files = await fs.promises.readdir(assetpath);
     const cssAssets = files.filter(l => l.endsWith(".css"));
     const allContent = [];
     for (const asset of cssAssets) {
-      const content = await fs.readFile(path.join(assetpath, asset), "utf-8");
+      const content = await fs.promises.readFile(path.join(assetpath, asset), "utf-8");
       allContent.push(`<style type="text/css">${content}</style>`);
     }
     return allContent.join("\n");
@@ -36,12 +36,14 @@ const getStyleSheets = async () => {
   }
 };
 
-const pool = new Pool();
-const db = {
-  query: (text: string, values?: any[]) => pool.query(text, values),
-};
+const pool = new Pool({
+  ssl: {
+    ca: fs.readFileSync("ca.crt").toString(),
+  },
+});
 
 async function seedDB() {
+  const client = await pool.connect();
   const createTableText = `
   CREATE EXTENSION IF NOT EXISTS "pgcrypto";
   
@@ -52,7 +54,7 @@ async function seedDB() {
   );
   `;
   // create our table
-  await db.query(createTableText);
+  await client.query(createTableText);
   console.log("DB Tables Created");
 }
 seedDB();
@@ -63,8 +65,9 @@ async function createServer(isProd = process.env.NODE_ENV === "production") {
   app.use(bodyParser.json());
   //GET /api/photos
   app.get("/api/photos", async (req: Request, res: Response) => {
+    const client = await pool.connect();
     try {
-      const result = await db.query(`SELECT id, "data"
+      const result = await client.query(`SELECT id, "data"
       FROM "images" ORDER BY created_at DESC`);
       res.json(result.rows);
     } catch (err) {
@@ -92,11 +95,12 @@ async function createServer(isProd = process.env.NODE_ENV === "production") {
   });
   //GET /api/photos
   app.get("/api/photos/:id", async (req: Request, res: Response) => {
+    const client = await pool.connect();
     const id = req.params.id;
     try {
       const query = `SELECT id, "data"
       FROM "images" WHERE id = $1`;
-      const result = await db.query(query, [id]);
+      const result = await client.query(query, [id]);
       if (result.rows.length === 0) {
         res.status(404).send("Resource not found");
       }
@@ -131,7 +135,10 @@ async function createServer(isProd = process.env.NODE_ENV === "production") {
   }
   const stylesheets = getStyleSheets();
 
-  const baseTemplate = await fs.readFile(isProd ? resolve("client/index.html") : resolve("index.html"), "utf-8");
+  const baseTemplate = await fs.promises.readFile(
+    isProd ? resolve("client/index.html") : resolve("index.html"),
+    "utf-8",
+  );
   const productionBuildPath = path.join(__dirname, "./server/entry-server.js");
   const devBuildPath = path.join(__dirname, "./src/client/entry-server.tsx");
   const buildModule = isProd ? productionBuildPath : devBuildPath;
