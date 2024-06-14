@@ -36,11 +36,7 @@ const getStyleSheets = async () => {
   }
 };
 
-const pool = new Pool({
-  ssl: {
-    ca: fs.readFileSync("ca.crt").toString(),
-  },
-});
+const pool = new Pool();
 
 async function seedDB() {
   const client = await pool.connect();
