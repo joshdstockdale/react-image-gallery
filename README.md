@@ -6,6 +6,10 @@
 - [Tailwind CSS](https://tailwindui.com/)
 - [Prettier](https://prettier.io/) & [ESLint](https://eslint.org/)
 
+### Set up .env
+
+Copy or rename .env.sample to .env and update your connection details.
+
 ## Development
 
 ```
