@@ -1,15 +1,16 @@
+import { vitePlugin as remix } from "@remix-run/dev";
 import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import path from "path";
+import tsconfigPaths from "vite-tsconfig-paths";
 
-// https://vitejs.dev/config/
-const isProd = process.env.NODE_ENV === "production";
 export default defineConfig({
-  plugins: [react()],
-  server: { port: 3000 },
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src/client"),
-    },
-  },
+  plugins: [
+    remix({
+      future: {
+        v3_fetcherPersist: true,
+        v3_relativeSplatPath: true,
+        v3_throwAbortReason: true,
+      },
+    }),
+    tsconfigPaths(),
+  ],
 });

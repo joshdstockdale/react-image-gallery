@@ -1,29 +1,33 @@
 {
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "**/.server/**/*.ts",
+    "**/.server/**/*.tsx",
+    "**/.client/**/*.ts",
+    "**/.client/**/*.tsx"
+  ],
   "compilerOptions": {
-    "allowJs": true,
-    "alwaysStrict": true,
-    "allowSyntheticDefaultImports": true,
-    "baseUrl": ".",
-    "checkJs": true,
-    "declaration": true,
-    "declarationMap": true,
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "types": ["@remix-run/node", "vite/client", "@uploadcare/blocks/types/jsx"],
+    "isolatedModules": true,
     "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "incremental": true,
-    "jsx": "react-jsxdev",
-    "lib": ["DOM", "DOM.Iterable", "ESNext"],
-    "strict": true,
-    "outDir": "dist",
+    "jsx": "react-jsx",
     "module": "ESNext",
-    "moduleResolution": "Node",
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2022",
+    "strict": true,
+    "allowJs": true,
     "skipLibCheck": true,
-    "sourceMap": true,
-    "target": "ES2017",
-    "types": ["vite/client", "@uploadcare/blocks/types/jsx"],
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/client/*"]
-    }
-  },
-  "include": ["src/**/*", "types/*", "server.ts", "node_modules/vite/types/*"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+      "~/*": ["./app/*"]
+    },
+
+    // Vite takes care of building everything, not tsc.
+    "noEmit": true
+  }
 }

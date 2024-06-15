@@ -1,47 +1,40 @@
-# Vite Typescript React 18 SSR
+# Welcome to Remix!
 
-- [React 18](https://reactjs.org/blog/2022/03/29/react-v18.html)
-- [Typescript 4.9](https://devblogs.microsoft.com/typescript/announcing-typescript-4-7/)
-- [Vite with Vite SSR](https://vitejs.dev/guide/ssr.html)
-- [Tailwind CSS](https://tailwindui.com/)
-- [Prettier](https://prettier.io/) & [ESLint](https://eslint.org/)
-
-### Set up .env
-
-Copy or rename .env.sample to .env and update your connection details.
+- 📖 [Remix docs](https://remix.run/docs)
 
 ## Development
 
+Run the dev server:
+
+```shellscript
+npm run dev
 ```
-npm i
-npm run dev:server
-```
 
-That should start the server. It will open to http://localhost:7456.
+## Deployment
 
-To start the native vite client.
+First, build your app for production:
 
-## Building
-
-```
+```sh
 npm run build
-npm run serve
 ```
 
-## Files
+Then run the app in production mode:
 
-`eslintrc.js` - a barebones eslint configuration for 2021, that extends off of the recommended ESLint config and prettier
+```sh
+npm start
+```
 
-`.prettierrc.js` - the prettier config
+Now you'll need to pick a host to deploy it to.
 
-`index.html` - the vite entrypoint, that includes the entry point for the client
+### DIY
 
-`postcss.config.cjs` - CommonJS module that defines the PostCSS config
+If you're familiar with deploying Node applications, the built-in Remix app server is production-ready.
 
-`server.ts` - The barebones Express server with logic for SSRing Vite pages
+Make sure to deploy the output of `npm run build`
 
-`tailwind.config.cjs` - CommonJS module that defines the Tailwind config
+- `build/server`
+- `build/client`
 
-`tsconfig.json` - TypeScript configuration
+## Styling
 
-`vite.config.ts` - Vite configuration
+This template comes with [Tailwind CSS](https://tailwindcss.com/) already configured for a simple default starting experience. You can use whatever css framework you prefer. See the [Vite docs on css](https://vitejs.dev/guide/features.html#css) for more information.
