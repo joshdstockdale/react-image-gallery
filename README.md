@@ -2,6 +2,18 @@
 
 - 📖 [Remix docs](https://remix.run/docs)
 
+## DB (Postgres)
+
+Rename .env.sample > .env
+Enter DATABASE_URL
+
+Drizzle Migrate DB:
+
+```
+npm run db:generate
+npm run db:migrate
+```
+
 ## Development
 
 Run the dev server:
@@ -25,6 +37,21 @@ npm start
 ```
 
 Now you'll need to pick a host to deploy it to.
+
+## Fly
+
+First time
+
+```
+fly auth signup
+fly launch
+```
+
+After set up
+
+```
+fly deploy
+```
 
 ### DIY
 
